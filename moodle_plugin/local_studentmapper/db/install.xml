@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/studentmapper/db" VERSION="20240110" COMMENT="XMLDB file for Moodle local/studentmapper plugin"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_studentmapper_queue" COMMENT="Queue for failed sync attempts with retry logic">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Moodle user ID"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="JSON payload to send"/>
+        <FIELD NAME="eventtype" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Event type: user_created, user_updated, manual"/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Number of retry attempts"/>
+        <FIELD NAME="max_attempts" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="5" SEQUENCE="false" COMMENT="Maximum retry attempts"/>
+        <FIELD NAME="next_retry" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp for next retry"/>
+        <FIELD NAME="last_error" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Last error message"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="Status: pending, processing, failed, completed"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp created"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp modified"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="status_nextretry" UNIQUE="false" FIELDS="status, next_retry" COMMENT="For efficient queue processing queries"/>
+        <INDEX NAME="eventtype" UNIQUE="false" FIELDS="eventtype"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_studentmapper_log" COMMENT="Comprehensive audit log for all sync attempts">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Moodle user ID"/>
+        <FIELD NAME="queueid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Related queue entry ID if applicable"/>
+        <FIELD NAME="eventtype" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Event type that triggered sync"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="JSON payload sent"/>
+        <FIELD NAME="response" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="API response body"/>
+        <FIELD NAME="http_code" TYPE="int" LENGTH="5" NOTNULL="false" SEQUENCE="false" COMMENT="HTTP status code"/>
+        <FIELD NAME="success" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if success, 0 if failed"/>
+        <FIELD NAME="error_message" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Error message if failed"/>
+        <FIELD NAME="execution_time" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Execution time in milliseconds"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp of sync attempt"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="queueid" TYPE="foreign" FIELDS="queueid" REFTABLE="local_studentmapper_queue" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="userid_success" UNIQUE="false" FIELDS="userid, success" COMMENT="For filtering user sync history"/>
+        <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated" COMMENT="For date range queries"/>
+        <INDEX NAME="success" UNIQUE="false" FIELDS="success" COMMENT="For success/failure statistics"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_studentmapper_transform" COMMENT="Field transformation rules configuration">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="field_name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Field name to transform"/>
+        <FIELD NAME="transform_type" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Transform type: uppercase, lowercase, date_format, concat, substring, regex, conditional, trim, default"/>
+        <FIELD NAME="transform_config" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON configuration for transformation"/>
+        <FIELD NAME="priority" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Order of execution if multiple transforms"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="1 if enabled, 0 if disabled"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp created"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp modified"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="field_enabled" UNIQUE="false" FIELDS="field_name, enabled" COMMENT="For quickly finding active transforms for a field"/>
+        <INDEX NAME="priority" UNIQUE="false" FIELDS="priority" COMMENT="For ordering transforms by priority"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_studentmapper_webhook" COMMENT="Webhook verification history and audit trail">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="request_id" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Unique identifier for this request"/>
+        <FIELD NAME="signature" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="HMAC signature sent with request"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Request payload"/>
+        <FIELD NAME="verified" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if signature verified, 0 if failed"/>
+        <FIELD NAME="ip_address" TYPE="char" LENGTH="45" NOTNULL="false" SEQUENCE="false" COMMENT="IP address of request origin"/>
+        <FIELD NAME="user_agent" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="User agent string"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp of request"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="request_id" UNIQUE="true" FIELDS="request_id" COMMENT="Prevent duplicate request processing"/>
+        <INDEX NAME="verified" UNIQUE="false" FIELDS="verified" COMMENT="For security auditing"/>
+        <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated" COMMENT="For cleanup queries"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

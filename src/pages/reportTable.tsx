@@ -137,6 +137,7 @@ export default function TeacherGrades() {
   }, [fetchReports]);
 
   const handleSchoolSelect = (schoolName: string) => {
+    if (loading || reports.length === 0) return;
     setSelectedSchool(schoolName);
   };
 
@@ -182,7 +183,24 @@ export default function TeacherGrades() {
   }
 
   if (selectedSchool) {
-    const report = reports.find((r) => r.schoolName === selectedSchool);
+    const report = reports.find((r) => r && r.schoolName === selectedSchool);
+    if (!report) {
+      return (
+        <MainLayout requiredRole="teacher">
+          <Box m={2}>
+            <CircularProgress size={60} thickness={4} />
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={handleBackToList}
+              sx={{ mt: 2 }}
+            >
+              Back to School List
+            </Button>
+          </Box>
+        </MainLayout>
+      );
+    }
     return (
       <MainLayout requiredRole="teacher">
         <SchoolSubmissions
@@ -226,8 +244,9 @@ export default function TeacherGrades() {
               {accessibleSchools.map((schoolName) => (
                 <ListItem key={schoolName} className="border-b last:border-b-0">
                   <ListItemButton
-                    onClick={() => handleSchoolSelect(schoolName)}
-                    className="hover:bg-blue-50 transition-colors duration-200 py-4"
+                    onClick={!loading ? () => handleSchoolSelect(schoolName) : undefined}
+                    disabled={loading || reports.length === 0}
+                    className="hover:bg-blue-50 transition-colors duration-200 py-4 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ListItemText
                       primary={schoolName}

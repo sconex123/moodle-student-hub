@@ -49,7 +49,7 @@ interface SchoolSubmissionsProps {
 }
 
 export default function SchoolSubmissions({ report, onBack, onRefresh, loading = false }: SchoolSubmissionsProps) {
-  if(!report.schoolName){
+  if (!report || !report.schoolName) {
      return (
           <MainLayout requiredRole="teacher">
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
